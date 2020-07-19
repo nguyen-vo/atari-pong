@@ -33,6 +33,7 @@
 
 import gym
 import numpy as np
+import _pickle as pickle
 
 def downsample(image):
     # Take only alternate pixels - basically halves the resolution of the image (which is fine for us)
@@ -117,7 +118,7 @@ def discount_rewards(rewards, gamma):
     This implements that logic by discounting the reward on previous actions based on how long ago they were taken"""
     discounted_rewards = np.zeros_like(rewards)
     running_add = 0
-    for t in reversed(xrange(0, rewards.size)):
+    for t in reversed(range(0, rewards.size)):
         if rewards[t] != 0:
             running_add = 0 # reset the sum, since this was a game boundary (pong specific!)
         running_add = running_add * gamma + rewards[t]
@@ -145,16 +146,21 @@ def main():
     num_hidden_layer_neurons = 200
     input_dimensions = 80 * 80
     learning_rate = 1e-4
+    #changed
+    resume = True
 
     episode_number = 0
     reward_sum = 0
     running_reward = None
     prev_processed_observations = None
-
-    weights = {
-        '1': np.random.randn(num_hidden_layer_neurons, input_dimensions) / np.sqrt(input_dimensions),
-        '2': np.random.randn(num_hidden_layer_neurons) / np.sqrt(num_hidden_layer_neurons)
-    }
+    #changed
+    if resume:
+        weights = pickle.load(open('save.p','rb'))
+    else:
+        weights = {
+            '1': np.random.randn(num_hidden_layer_neurons, input_dimensions) / np.sqrt(input_dimensions),
+            '2': np.random.randn(num_hidden_layer_neurons) / np.sqrt(num_hidden_layer_neurons)
+        }
 
     # To be used with rmsprop algorithm (http://sebastianruder.com/optimizing-gradient-descent/index.html#rmsprop)
     expectation_g_squared = {}
@@ -216,9 +222,15 @@ def main():
 
             episode_hidden_layer_values, episode_observations, episode_gradient_log_ps, episode_rewards = [], [], [], [] # reset values
             observation = env.reset() # reset env
+            #simutaniously let the agnet explora the environment at .01 rate and exploit the environment at .99 rate
             running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-            print 'resetting env. episode reward total was %f. running mean: %f' % (reward_sum, running_reward)
+
+            print('resetting env. episode reward total was %f. running mean: %f' % (reward_sum, running_reward))
+           #save the model weights every 100 episodes.
+            if episode_number % 100 == 0: pickle.dump(weights, open('save.p', 'wb'))
             reward_sum = 0
             prev_processed_observations = None
+        if reward != 0:  # Pong has either +1 or -1 reward exactly when game ends.
+            print('ep %d: game finished, reward: %f' % (episode_number, reward), '' if reward == -1 else ' !!!!!!!!')
 
 main()
